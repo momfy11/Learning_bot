@@ -35,14 +35,14 @@ Since you've already built the program locally, here's how to add it:
 cd /path/to/your/learning_bot
 
 # Copy your files to this repository
-# Replace the path with the actual location of this repo
-cp -r * /home/runner/work/Learning_bot/Learning_bot/
+# Replace with the actual path where you cloned Learning_bot
+cp -r * /path/to/Learning_bot/
 ```
 
 ### Step 2: Review What You're Adding
 
 ```bash
-cd /home/runner/work/Learning_bot/Learning_bot
+cd /path/to/Learning_bot
 git status
 ```
 

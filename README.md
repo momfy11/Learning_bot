@@ -18,7 +18,7 @@ Since you've already built the program locally, follow these steps to add your f
 1. **Navigate to your local program directory** (where your code currently is)
 2. **Copy your program files** to this repository:
    ```bash
-   cp -r /path/to/your/local/program/* /home/runner/work/Learning_bot/Learning_bot/
+   cp -r /path/to/your/local/program/* /path/to/Learning_bot/
    ```
 3. **Check what will be added**:
    ```bash
