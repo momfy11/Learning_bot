@@ -1,0 +1,448 @@
+"""
+LLM Service Module
+
+This module handles interaction with the Mistral AI API.
+The key feature: Generate GUIDANCE, not direct answers!
+
+The bot should:
+- Give brief topic hints
+- Point to where answers can be found
+- Encourage independent learning
+"""
+
+from typing import Dict, List, Optional, Any
+import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
+from app.config import settings
+from app.models.user import ChatProfile
+from app.schemas.document import SearchResult
+
+
+# Mistral API endpoint
+MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
+
+
+def build_system_prompt(
+    learning_style: str = "guided",
+    difficulty_level: str = "intermediate"
+) -> str:
+    """
+    Build the system prompt that instructs the LLM to be a learning guide.
+    
+    The bot should be natural and conversational, but guide students
+    to find factual answers themselves rather than giving them directly.
+    
+    Args:
+        learning_style (str): How to guide the user
+            - "guided": Step-by-step hints
+            - "socratic": Answer questions with questions
+            - "exploratory": Encourage independent discovery
+        difficulty_level (str): How detailed hints should be
+            - "beginner": More detailed hints
+            - "intermediate": Balanced hints
+            - "advanced": Minimal hints
+    
+    Returns:
+        str: The system prompt for the LLM
+    """
+    # Base instruction - be natural but guide learning
+    base_prompt = """You are a friendly and helpful learning assistant. Your goal is to help students learn effectively.
+
+IMPORTANT GUIDELINES:
+
+1. BE NATURAL AND CONVERSATIONAL
+   - Answer general questions normally (greetings, clarifications, what we discussed, etc.)
+   - Have natural conversations - you're a helpful tutor, not a robot
+   - Remember and reference what you've discussed in the conversation
+
+2. FOR FACTUAL/EDUCATIONAL QUESTIONS FROM BOOKS:
+   - Don't give direct answers to questions that students should learn themselves
+   - Instead, provide helpful hints and guide them toward the answer
+   - Tell them WHERE to find the answer (book title, page number, chapter)
+   - Encourage them to read and discover
+
+3. WHAT YOU CAN ANSWER DIRECTLY:
+   - Conversational questions ("what did we talk about?", "can you explain more?")
+   - General clarifications and follow-ups
+   - Questions about how to use the platform
+   - Encouragement and motivation
+
+4. WHAT YOU SHOULD GUIDE (not answer directly):
+   - Specific facts from learning materials ("what is X?", "define Y")
+   - Questions that have answers in the uploaded documents
+   - Things the student should learn by reading
+
+"""
+    
+    # Style-specific instructions
+    style_instructions = {
+        "guided": """Learning Style: GUIDED
+- When guiding, provide step-by-step hints
+- Break down complex topics into smaller concepts
+- Give the first step, let them figure out the rest
+""",
+        "socratic": """Learning Style: SOCRATIC
+- Use questions to guide their thinking
+- "What do you think happens when...?"
+- "Have you considered...?"
+- Help them reason through problems
+""",
+        "exploratory": """Learning Style: EXPLORATORY
+- Give minimal guidance
+- "This relates to the concept of..."
+- "You might want to explore..."
+- Trust them to find their own path
+"""
+    }
+    
+    # Difficulty-specific instructions
+    difficulty_instructions = {
+        "beginner": """Difficulty Level: BEGINNER
+- Be more supportive and provide more hints
+- Use simple, clear language
+- It's okay to give more context
+""",
+        "intermediate": """Difficulty Level: INTERMEDIATE
+- Balance guidance with independence
+- Assume some background knowledge
+- Point to specific resources
+""",
+        "advanced": """Difficulty Level: ADVANCED
+- Minimal hints, maximum independence
+- Brief pointers to sources
+- Trust them to figure it out
+"""
+    }
+    
+    # Combine prompts
+    full_prompt = base_prompt
+    full_prompt += style_instructions.get(learning_style, style_instructions["guided"])
+    full_prompt += difficulty_instructions.get(difficulty_level, difficulty_instructions["intermediate"])
+    
+    full_prompt += """
+CRITICAL - ABOUT BOOK REFERENCES:
+- ONLY recommend books/documents that are provided in the "AVAILABLE SOURCE MATERIALS" section
+- NEVER make up or suggest books that aren't in the sources
+- If sources are available, always mention them by name and page number
+- If no sources are found, say you don't have specific materials on that topic yet
+
+Remember: Be friendly and natural! You're a helpful tutor who wants students to truly learn and understand, not just get answers handed to them.
+"""
+    
+    return full_prompt
+
+
+def format_context_from_search(search_results: List[SearchResult]) -> str:
+    """
+    Format search results into context for the LLM.
+    
+    Args:
+        search_results (List[SearchResult]): RAG search results
+    
+    Returns:
+        str: Formatted context string
+    """
+    if not search_results:
+        return "No relevant documents found in the knowledge base."
+    
+    context = "RELEVANT SOURCE MATERIALS:\n\n"
+    
+    for i, result in enumerate(search_results, 1):
+        context += f"Source {i}: {result.document_title}\n"
+        if result.chapter:
+            context += f"  Chapter: {result.chapter}\n"
+        if result.page_number:
+            context += f"  Page: {result.page_number}\n"
+        if result.section:
+            context += f"  Section: {result.section}\n"
+        context += f"  Preview: {result.content_preview[:200]}...\n\n"
+    
+    return context
+
+
+async def generate_learning_response(
+    question: str,
+    search_results: List[SearchResult],
+    profile_id: Optional[int],
+    db: AsyncSession,
+    user_id: int,
+    conversation_history: Optional[List[Dict[str, str]]] = None,
+    images: Optional[List[Dict[str, str]]] = None
+) -> Dict[str, Any]:
+    """
+    Generate a learning guidance response using Mistral AI.
+    
+    This function:
+    1. Gets the user's chat profile (if any)
+    2. Builds the appropriate system prompt
+    3. Formats the context from document search
+    4. Includes conversation history for context
+    5. Handles image attachments (vision capability)
+    6. Calls Mistral API
+    7. Extracts topic hints and suggestions
+    
+    Args:
+        question (str): The user's question
+        search_results (List[SearchResult]): Relevant document chunks
+        profile_id (int): Optional chat profile ID
+        db (AsyncSession): Database session
+        user_id (int): Current user's ID
+        conversation_history (List[Dict]): Previous messages in conversation
+            Each dict has 'role' ('user' or 'assistant') and 'content'
+        images (List[Dict]): Optional list of images, each with 'data' (base64) and 'type'
+    
+    Returns:
+        Dict containing:
+            - message: The guidance response
+            - topic_hint: Brief topic description
+            - suggested_reading: What to study
+    
+    Example:
+        response = await generate_learning_response(
+            question="What is photosynthesis?",
+            search_results=[...],
+            profile_id=1,
+            db=db,
+            user_id=1,
+            conversation_history=[
+                {"role": "user", "content": "Tell me about plants"},
+                {"role": "assistant", "content": "Plants are fascinating!..."}
+            ]
+        )
+        # Returns:
+        # {
+        #     "message": "Great question about plant biology!...",
+        #     "topic_hint": "Plant energy conversion",
+        #     "suggested_reading": "Chapter 3 of Biology 101"
+        # }
+    """
+    # Get user's profile settings (if specified)
+    learning_style = "guided"
+    difficulty_level = "intermediate"
+    
+    if profile_id:
+        result = await db.execute(
+            select(ChatProfile).where(
+                ChatProfile.id == profile_id,
+                ChatProfile.user_id == user_id
+            )
+        )
+        profile = result.scalar_one_or_none()
+        if profile:
+            learning_style = profile.learning_style
+            difficulty_level = profile.difficulty_level
+    
+    # Build the system prompt
+    system_prompt = build_system_prompt(
+        learning_style=learning_style,
+        difficulty_level=difficulty_level
+    )
+    
+    # Format context from search results
+    context = format_context_from_search(search_results=search_results)
+    
+    # Build the user message with context
+    # Handle cases: text only, images only, or both
+    if images and not question:
+        # Image-only message
+        user_message = "The student has shared an image. Please describe what you see and help them learn from it. If it's related to their studies, guide them on how to understand it better."
+    elif search_results and question:
+        user_message = f"""Student's Question: {question}
+
+AVAILABLE SOURCE MATERIALS (use these for references):
+{context}
+
+Guide the student and reference the sources above. Tell them which book and page to look at."""
+    elif question:
+        user_message = f"""Student's Question: {question}
+
+No relevant source materials found in the uploaded documents.
+
+Respond naturally to the student. If they're asking about a topic that would be in learning materials, let them know you don't have specific documents on that topic yet."""
+    else:
+        user_message = "Hello! How can I help you learn today?"
+    
+    # Check if API key is configured
+    if not settings.MISTRAL_API_KEY:
+        # Return a helpful message if no API key
+        return {
+            "message": (
+                "I'd love to help you explore this topic! "
+                "However, my AI capabilities aren't configured yet. "
+                "Please check the README for setup instructions. "
+                "In the meantime, try searching the uploaded documents!"
+            ),
+            "topic_hint": "Configuration needed",
+            "suggested_reading": "Check .env file for API key setup"
+        }
+    
+    # Build messages array with conversation history
+    messages = [{"role": "system", "content": system_prompt}]
+    
+    # Add conversation history (last 10 messages to avoid token limits)
+    if conversation_history:
+        # Limit history to last 10 messages
+        recent_history = conversation_history[-10:]
+        for msg in recent_history:
+            messages.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+    
+    # Build the user message content (text + optional images)
+    # Mistral vision API expects content as array for multimodal
+    if images:
+        # Multimodal message with images
+        print(f"Processing {len(images)} images for vision API")
+        user_content = []
+        
+        # Add text part if present
+        if user_message:
+            user_content.append({
+                "type": "text",
+                "text": user_message
+            })
+        else:
+            # Mistral requires text with images
+            user_content.append({
+                "type": "text",
+                "text": "Please describe what you see in this image."
+            })
+        
+        # Add images
+        for img in images:
+            print(f"Adding image of type: {img.get('type', 'unknown')}")
+            user_content.append({
+                "type": "image_url",
+                "image_url": img["data"]  # data:image/jpeg;base64,... format
+            })
+        
+        messages.append({"role": "user", "content": user_content})
+    else:
+        # Text-only message
+        messages.append({"role": "user", "content": user_message})
+    
+    # Call Mistral API
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:  # Longer timeout for images
+            response = await client.post(
+                url=MISTRAL_API_URL,
+                headers={
+                    "Authorization": f"Bearer {settings.MISTRAL_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": settings.MISTRAL_MODEL,
+                    "messages": messages,
+                    "temperature": 0.7,  # Some creativity in responses
+                    "max_tokens": 800    # More tokens for image descriptions
+                }
+            )
+            
+            response.raise_for_status()
+            data = response.json()
+            
+            # Extract the assistant's response
+            assistant_message = data["choices"][0]["message"]["content"]
+            
+            # Extract topic hint (first sentence or phrase)
+            topic_hint = extract_topic_hint(question=question)
+            
+            # Build suggested reading from search results
+            suggested_reading = build_suggested_reading(
+                search_results=search_results
+            )
+            
+            return {
+                "message": assistant_message,
+                "topic_hint": topic_hint,
+                "suggested_reading": suggested_reading
+            }
+            
+    except httpx.HTTPStatusError as e:
+        # Handle API errors gracefully with details
+        error_detail = ""
+        try:
+            error_detail = e.response.json()
+        except:
+            error_detail = e.response.text
+        print(f"Mistral API Error: {e.response.status_code} - {error_detail}")
+        return {
+            "message": (
+                "I'm having trouble connecting to my knowledge base right now. "
+                "But don't let that stop you! Based on your question, "
+                "try looking in the uploaded documents for information about this topic."
+            ),
+            "topic_hint": extract_topic_hint(question=question),
+            "suggested_reading": build_suggested_reading(search_results=search_results),
+            "error": f"{e.response.status_code}: {error_detail}"
+        }
+    except httpx.HTTPError as e:
+        # Handle connection errors
+        print(f"Mistral Connection Error: {str(e)}")
+        return {
+            "message": (
+                "I'm having trouble connecting to my knowledge base right now. "
+                "But don't let that stop you! Based on your question, "
+                "try looking in the uploaded documents for information about this topic."
+            ),
+            "topic_hint": extract_topic_hint(question=question),
+            "suggested_reading": build_suggested_reading(search_results=search_results),
+            "error": str(e)
+        }
+
+
+def extract_topic_hint(question: str) -> str:
+    """
+    Extract a brief topic hint from the question.
+    
+    Simple extraction of key concepts from the question.
+    
+    Args:
+        question (str): The user's question
+    
+    Returns:
+        str: Brief topic description
+    """
+    # Remove common question words
+    question_words = [
+        "what", "how", "why", "when", "where", "who", "which",
+        "is", "are", "was", "were", "do", "does", "did",
+        "can", "could", "would", "should", "will",
+        "the", "a", "an"
+    ]
+    
+    words = question.lower().split()
+    key_words = [w for w in words if w not in question_words and len(w) > 2]
+    
+    # Return first few key words as topic hint
+    if key_words:
+        return " ".join(key_words[:4]).title()
+    return "General inquiry"
+
+
+def build_suggested_reading(search_results: List[SearchResult]) -> str:
+    """
+    Build suggested reading string from search results.
+    
+    Args:
+        search_results (List[SearchResult]): RAG search results
+    
+    Returns:
+        str: Suggested reading materials
+    """
+    if not search_results:
+        return "Try uploading relevant learning materials"
+    
+    suggestions = []
+    for result in search_results[:2]:  # Top 2 results
+        suggestion = result.document_title
+        if result.chapter:
+            suggestion += f", {result.chapter}"
+        if result.page_number:
+            suggestion += f" (page {result.page_number})"
+        suggestions.append(suggestion)
+    
+    return "; ".join(suggestions)
