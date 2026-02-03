@@ -203,6 +203,7 @@ class ChatRequest(BaseModel):
     """
     message: str = Field(
         default="",
+        max_length=5000,  # Prevent excessively long prompts
         description="User's question or message"
     )
     conversation_id: Optional[int] = Field(
