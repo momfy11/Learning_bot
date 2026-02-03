@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
     Application lifespan manager.
     
     Handles startup and shutdown tasks:
-    - Startup: Create database tables, scan documents folder
+    - Startup: Create database tables, scan documents folder (in background)
     - Shutdown: Clean up resources
     
     Args:
@@ -41,16 +41,20 @@ async def lifespan(app: FastAPI):
     Yields:
         None: Control is returned to the application
     """
-    # Startup
+    # Startup - run ALL initialization in background to allow fast port binding
     print("🚀 Starting Learning Bot...")
-    try:
-        await create_tables()
-        print("✅ Database tables created")
-    except Exception as e:
-        print(f"⚠️ Database setup warning: {e}")
-        # Continue anyway - tables might already exist
     
-    async def _scan_documents_background() -> None:
+    async def _initialize_background() -> None:
+        """Initialize database and scan documents in background."""
+        # Create database tables
+        try:
+            print("📊 Creating database tables...")
+            await create_tables()
+            print("✅ Database tables created")
+        except Exception as e:
+            print(f"⚠️ Database setup warning: {e}")
+        
+        # Scan documents folder
         try:
             print("📂 Scanning documents folder...")
             async with async_session() as db:
@@ -60,11 +64,13 @@ async def lifespan(app: FastAPI):
                     print(f"⚠️ Errors: {len(result['errors'])}")
         except Exception as e:
             print(f"⚠️ Document scan warning: {e}")
+        
+        print("✅ Background initialization complete!")
 
-    # Scan documents folder in the background so startup doesn't block
-    asyncio.create_task(_scan_documents_background())
+    # Run initialization in background - don't wait for it
+    asyncio.create_task(_initialize_background())
     
-    print("✅ Learning Bot ready!")
+    print("✅ Learning Bot ready! (background tasks starting...)")
     
     yield  # Application runs here
     
