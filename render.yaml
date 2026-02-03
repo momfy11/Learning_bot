@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: learning-bot-backend
+    env: python
+    region: oregon
+    plan: free
+    runtime: python-3.11
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        scope: build,runtime
+      - key: SECRET_KEY
+        scope: build,runtime
+      - key: MISTRAL_API_KEY
+        scope: build,runtime
+      - key: MISTRAL_MODEL
+        value: mistral-small-2506
+      - key: EMBEDDING_MODEL
+        value: all-MiniLM-L6-v2
+      - key: FRONTEND_URL
+        value: https://learning-bot-frontend.vercel.app
+      - key: MAX_CONTEXT_TOKENS
+        value: 2000
+      - key: TOP_K_RESULTS
+        value: 3
+
+  - type: web
+    name: learning-bot-frontend
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm run preview
+    envVars:
+      - key: VITE_API_URL
+        value: https://learning-bot-backend.onrender.com
