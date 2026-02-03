@@ -9,6 +9,7 @@ rather than giving direct responses. It uses RAG to reference
 specific locations in uploaded documents.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -49,17 +50,19 @@ async def lifespan(app: FastAPI):
         print(f"⚠️ Database setup warning: {e}")
         # Continue anyway - tables might already exist
     
-    # Scan documents folder for new files (non-blocking)
-    try:
-        print("📂 Scanning documents folder...")
-        async with async_session() as db:
-            result = await scan_documents_folder(db)
-            print(f"📚 Documents: {result['new_count']} new, {result['existing_count']} existing")
-            if result['errors']:
-                print(f"⚠️ Errors: {len(result['errors'])}")
-    except Exception as e:
-        print(f"⚠️ Document scan warning: {e}")
-        # Continue anyway - documents can be uploaded later
+    async def _scan_documents_background() -> None:
+        try:
+            print("📂 Scanning documents folder...")
+            async with async_session() as db:
+                result = await scan_documents_folder(db)
+                print(f"📚 Documents: {result['new_count']} new, {result['existing_count']} existing")
+                if result['errors']:
+                    print(f"⚠️ Errors: {len(result['errors'])}")
+        except Exception as e:
+            print(f"⚠️ Document scan warning: {e}")
+
+    # Scan documents folder in the background so startup doesn't block
+    asyncio.create_task(_scan_documents_background())
     
     print("✅ Learning Bot ready!")
     
