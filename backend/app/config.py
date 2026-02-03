@@ -35,7 +35,9 @@ class Settings(BaseSettings):
     """
     
     # Database
-    DATABASE_URL: str = "sqlite:///./learning_bot.db"
+    # PostgreSQL format: postgresql+asyncpg://user:password@host:port/database
+    # For local: postgresql+asyncpg://postgres:password@localhost:5432/learning_bot
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/learning_bot"
     
     # Authentication
     SECRET_KEY: str = "your-super-secret-key-change-this-in-production"

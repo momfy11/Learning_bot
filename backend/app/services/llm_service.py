@@ -369,6 +369,21 @@ Respond naturally to the student. If they're asking about a topic that would be 
         except:
             error_detail = e.response.text
         print(f"Mistral API Error: {e.response.status_code} - {error_detail}")
+        
+        # Check if this is an image-related error
+        if images and len(images) > 0:
+            return {
+                "message": (
+                    "🎨 I appreciate you sharing that image! While I'm still learning to process images, "
+                    "I'd be happy to help if you describe what you're seeing or ask a text-based question. "
+                    "The image understanding feature is being enhanced and will be available soon! "
+                    "In the meantime, feel free to tell me about the content and I'll guide you to the right resources."
+                ),
+                "topic_hint": "Image Processing (In Development)",
+                "suggested_reading": build_suggested_reading(search_results=search_results),
+                "error": f"{e.response.status_code}: {error_detail}"
+            }
+        
         return {
             "message": (
                 "I'm having trouble connecting to my knowledge base right now. "
@@ -382,6 +397,21 @@ Respond naturally to the student. If they're asking about a topic that would be 
     except httpx.HTTPError as e:
         # Handle connection errors
         print(f"Mistral Connection Error: {str(e)}")
+        
+        # Check if this is an image-related error
+        if images and len(images) > 0:
+            return {
+                "message": (
+                    "🎨 Thanks for sharing that image! I'm currently learning to understand images better. "
+                    "For now, I work best with text-based questions. If you describe what you're looking at, "
+                    "I can guide you to helpful resources in our documents. The visual learning feature "
+                    "is coming soon - stay tuned!"
+                ),
+                "topic_hint": "Image Understanding (Coming Soon)",
+                "suggested_reading": build_suggested_reading(search_results=search_results),
+                "error": str(e)
+            }
+        
         return {
             "message": (
                 "I'm having trouble connecting to my knowledge base right now. "
