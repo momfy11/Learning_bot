@@ -4,26 +4,27 @@ services:
     env: python
     region: oregon
     plan: free
-    runtime: python-3.11
     buildCommand: cd backend && pip install -r requirements.txt
     startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
       - key: DATABASE_URL
-        scope: build,runtime
+        value: REPLACE_ME
       - key: SECRET_KEY
-        scope: build,runtime
+        value: REPLACE_ME
       - key: MISTRAL_API_KEY
-        scope: build,runtime
+        value: REPLACE_ME
       - key: MISTRAL_MODEL
         value: mistral-small-2506
       - key: EMBEDDING_MODEL
         value: all-MiniLM-L6-v2
       - key: FRONTEND_URL
-        value: https://learning-bot-frontend.vercel.app
+        value: https://learning-bot-frontend.onrender.com
       - key: MAX_CONTEXT_TOKENS
-        value: 2000
+        value: "2000"
       - key: TOP_K_RESULTS
-        value: 3
+        value: "3"
 
   - type: web
     name: learning-bot-frontend
