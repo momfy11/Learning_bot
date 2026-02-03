@@ -42,16 +42,26 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     print("🚀 Starting Learning Bot...")
-    await create_tables()
-    print("✅ Database tables created")
+    try:
+        await create_tables()
+        print("✅ Database tables created")
+    except Exception as e:
+        print(f"⚠️ Database setup warning: {e}")
+        # Continue anyway - tables might already exist
     
-    # Scan documents folder for new files
-    print("📂 Scanning documents folder...")
-    async with async_session() as db:
-        result = await scan_documents_folder(db)
-        print(f"📚 Documents: {result['new_count']} new, {result['existing_count']} existing")
-        if result['errors']:
-            print(f"⚠️ Errors: {len(result['errors'])}")
+    # Scan documents folder for new files (non-blocking)
+    try:
+        print("📂 Scanning documents folder...")
+        async with async_session() as db:
+            result = await scan_documents_folder(db)
+            print(f"📚 Documents: {result['new_count']} new, {result['existing_count']} existing")
+            if result['errors']:
+                print(f"⚠️ Errors: {len(result['errors'])}")
+    except Exception as e:
+        print(f"⚠️ Document scan warning: {e}")
+        # Continue anyway - documents can be uploaded later
+    
+    print("✅ Learning Bot ready!")
     
     yield  # Application runs here
     
