@@ -12,7 +12,7 @@ When a user asks a question, we search the documents and
 return relevant chunks with their location (page, chapter).
 """
 
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 import os
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,31 +26,43 @@ from app.schemas.document import SearchResult
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 
-# Sentence transformers for embeddings
-# This creates vector representations of text
-from sentence_transformers import SentenceTransformer
+if TYPE_CHECKING:
+    # Only import for type checking to avoid heavy startup cost
+    from sentence_transformers import SentenceTransformer
 
 
-# Initialize ChromaDB client
-# persist_directory stores the vectors on disk
-chroma_client = chromadb.Client(ChromaSettings(
-    anonymized_telemetry=False,  # Disable telemetry
-    is_persistent=True,
-    persist_directory="./chroma_data"
-))
+_chroma_client = None
+_collection = None
 
-# Get or create the collection for document chunks
-# A collection is like a table in a traditional database
-try:
-    collection = chroma_client.get_or_create_collection(
-        name="document_chunks",
-        metadata={"description": "Learning materials for RAG"}
-    )
-except Exception:
-    collection = chroma_client.create_collection(
-        name="document_chunks",
-        metadata={"description": "Learning materials for RAG"}
-    )
+
+def get_chroma_client():
+    """Lazy initialize and return the ChromaDB client."""
+    global _chroma_client
+    if _chroma_client is None:
+        _chroma_client = chromadb.Client(ChromaSettings(
+            anonymized_telemetry=False,  # Disable telemetry
+            is_persistent=True,
+            persist_directory="./chroma_data"
+        ))
+    return _chroma_client
+
+
+def get_collection():
+    """Lazy initialize and return the ChromaDB collection."""
+    global _collection
+    if _collection is None:
+        chroma_client = get_chroma_client()
+        try:
+            _collection = chroma_client.get_or_create_collection(
+                name="document_chunks",
+                metadata={"description": "Learning materials for RAG"}
+            )
+        except Exception:
+            _collection = chroma_client.create_collection(
+                name="document_chunks",
+                metadata={"description": "Learning materials for RAG"}
+            )
+    return _collection
 
 # Initialize the embedding model
 # This model converts text to vectors
@@ -58,7 +70,7 @@ except Exception:
 _embedding_model = None
 
 
-def get_embedding_model() -> SentenceTransformer:
+def get_embedding_model() -> "SentenceTransformer":
     """
     Get the sentence transformer model (lazy loading).
     
@@ -70,6 +82,7 @@ def get_embedding_model() -> SentenceTransformer:
     """
     global _embedding_model
     if _embedding_model is None:
+        from sentence_transformers import SentenceTransformer
         _embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL)
     return _embedding_model
 
@@ -349,6 +362,7 @@ async def process_document(
     embeddings = model.encode(chunk_contents).tolist()
     
     # Add to ChromaDB
+    collection = get_collection()
     collection.add(
         ids=chunk_ids,
         embeddings=embeddings,
@@ -399,6 +413,7 @@ async def search_documents(
     
     # Search ChromaDB
     try:
+        collection = get_collection()
         results = collection.query(
             query_embeddings=query_embedding,
             n_results=top_k,
@@ -450,6 +465,7 @@ async def delete_document_embeddings(document_id: int) -> None:
     """
     try:
         # Get all embedding IDs for this document
+        collection = get_collection()
         results = collection.get(
             where={"document_id": document_id},
             include=[]
