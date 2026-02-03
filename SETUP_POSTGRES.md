@@ -67,26 +67,6 @@ cd backend
 uvicorn app.main:app --reload
 ```
 
----
-
-## Production (Render.com)
-
-Render provides a free PostgreSQL database:
-
-1. Go to https://dashboard.render.com
-2. Click "New +" → "PostgreSQL"
-3. Set name: `learning_bot_db`
-4. Keep other defaults
-5. Copy the connection string (looks like: `postgresql://user:pass@host:5432/dbname`)
-6. Add to your Render backend service environment:
-   ```
-   DATABASE_URL=<paste_connection_string_here>
-   ```
-
-That's it! Render manages the database for you.
-
----
-
 ## Useful PostgreSQL Commands
 
 ```bash

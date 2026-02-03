@@ -17,10 +17,6 @@ export default defineConfig({
   },
   preview: {
     port: 4173,
-    host: true,
-    allowedHosts: [
-      'learning-bot-frontend.onrender.com',
-      '.onrender.com'
-    ]
+    host: true
   }
 })
