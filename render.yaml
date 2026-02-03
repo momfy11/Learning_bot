@@ -10,11 +10,13 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: DATABASE_URL
-        value: REPLACE_ME
+        fromDatabase:
+          name: learning-bot-db
+          property: connectionString
       - key: SECRET_KEY
-        value: REPLACE_ME
+        generateValue: true
       - key: MISTRAL_API_KEY
-        value: REPLACE_ME
+        sync: false
       - key: MISTRAL_MODEL
         value: mistral-small-2506
       - key: EMBEDDING_MODEL
@@ -32,7 +34,7 @@ services:
     region: oregon
     plan: free
     buildCommand: cd frontend && npm install && npm run build
-    startCommand: cd frontend && npm run preview
+    startCommand: cd frontend && npm run preview -- --host 0.0.0.0 --port $PORT
     envVars:
       - key: VITE_API_URL
         value: https://learning-bot-backend.onrender.com
