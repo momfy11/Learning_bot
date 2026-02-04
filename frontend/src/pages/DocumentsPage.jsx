@@ -89,7 +89,7 @@ function DocumentsPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto h-full overflow-y-auto flex flex-col">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Learning Materials</h1>
