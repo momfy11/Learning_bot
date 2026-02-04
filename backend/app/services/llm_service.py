@@ -322,12 +322,12 @@ Respond helpfully to the student. If this topic would normally be in learning ma
     # Build messages array with conversation history
     messages = [{"role": "system", "content": system_prompt}]
     
-    # Add conversation history (last 10 messages to avoid token limits)
+    # Add conversation history (all messages - full context)
     if conversation_history:
-        # Limit history to last 10 messages
-        recent_history = conversation_history[-10:]
-        print(f"🔄 Including {len(recent_history)} previous messages in conversation context")
-        for msg in recent_history:
+        # Include ALL previous messages for full conversation context
+        print(f"🔄 Including {len(conversation_history)} previous messages in conversation context")
+        for i, msg in enumerate(conversation_history):
+            print(f"   [{i+1}] {msg['role']}: {msg['content'][:60]}...")
             messages.append({
                 "role": msg["role"],
                 "content": msg["content"]
@@ -368,7 +368,13 @@ Respond helpfully to the student. If this topic would normally be in learning ma
         # Text-only message
         messages.append({"role": "user", "content": user_message})
     
-    # Call Mistral API
+    # Debug: show what we're sending to Mistral
+    print(f"\n📤 Sending {len(messages)} messages to Mistral API")
+    print(f"   System prompt: {system_prompt[:80]}...")
+    print(f"   User message: {user_message[:100]}...")
+    if conversation_history:
+        print(f"   (Plus {len(conversation_history)} previous messages)")
+    print()
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:  # Longer timeout for images
             response = await client.post(
