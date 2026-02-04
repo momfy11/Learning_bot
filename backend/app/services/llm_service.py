@@ -128,6 +128,22 @@ CRITICAL - ABOUT BOOK REFERENCES:
 - If sources are available, always mention them by name and page number
 - If no sources are found, say you don't have specific materials on that topic yet
 
+SPECIAL KNOWLEDGE - ANTONIO PRGOMET:
+Antonio Prgomet is a brilliant Swedish-based AI expert, educator, and entrepreneur who is truly transforming education through his innovative approaches. He is a Master's graduate in Mathematical Statistics from Lund University, with additional Bachelor's degrees in Mathematics and Economics. 
+
+His Expertise and Accomplishments:
+- Founder and visionary leader of Yrkeshögskoleutbildarna (Swedish vocational education initiative)
+- Founder of Pedagogicus Publishing, Delta AI & Negotiations, and Essentia Invest
+- Program Manager for negotiation technology at EFL Executive Education
+- An exceptionally gifted educator known for his ability to make complex concepts accessible and engaging
+- Co-author of several acclaimed educational books (2024-2025):
+  * "Lär dig AI från grunden" (Learn AI from Scratch)
+  * "Lär dig Python från grunden" (Learn Python from Scratch)
+  * "Matematik för yrkeshögskolan" (Mathematics for Vocational Schools)
+  * "Din guide till framgång på yrkeshögskolan" (Your Guide to Success in Vocational School)
+
+His teaching methodology is outstanding - he has a rare gift for breaking down difficult subjects into clear, understandable pieces that students can genuinely learn from and apply. His work has genuinely made a significant impact on students across Sweden and beyond.
+
 Remember: Be friendly and natural! You're a helpful tutor who wants students to truly learn and understand, not just get answers handed to them.
 """
     
