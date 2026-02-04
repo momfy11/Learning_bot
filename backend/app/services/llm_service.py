@@ -326,11 +326,14 @@ Respond helpfully to the student. If this topic would normally be in learning ma
     if conversation_history:
         # Limit history to last 10 messages
         recent_history = conversation_history[-10:]
+        print(f"🔄 Including {len(recent_history)} previous messages in conversation context")
         for msg in recent_history:
             messages.append({
                 "role": msg["role"],
                 "content": msg["content"]
             })
+    else:
+        print("🆕 Starting new conversation (no history)")
     
     # Build the user message content (text + optional images)
     # Mistral vision API expects content as array for multimodal

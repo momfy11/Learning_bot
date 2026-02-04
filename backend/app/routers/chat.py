@@ -150,6 +150,10 @@ async def send_message(
         for msg in previous_messages
     ]
     
+    print(f"📜 Retrieved {len(conversation_history)} messages from conversation {conversation.id}")
+    if conversation_history:
+        print(f"   Last message was: {conversation_history[-1]['role']}: {conversation_history[-1]['content'][:50]}...")
+    
     # Extract image data if provided
     images = None
     if request.images:
