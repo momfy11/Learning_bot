@@ -270,28 +270,40 @@ async def generate_learning_response(
     # Build the user message with context
     # SECURITY: Always clearly separate user input from system context
     # User input is quoted and isolated to prevent prompt injection
-    if images and not question:
-        # Image-only message
-        user_message = "The student has shared an image. Please describe what you see and help them learn from it. If it's related to their studies, guide them on how to understand it better."
-    elif search_results and question:
-        # SECURITY: User question is clearly marked as input, not instructions
-        user_message = f"""STUDENT QUESTION (what the student asked):
+    
+    # Key insight: For follow-up messages, keep it natural - the LLM has conversation history
+    # Only embed full context and instructions on the FIRST message
+    if conversation_history:
+        # This is a follow-up message in an existing conversation
+        # Just send the question naturally - LLM has full conversation context
+        if images and not question:
+            user_message = "The student has shared an image. Please describe what you see and help them learn from it."
+        else:
+            # Simple, natural follow-up message
+            user_message = f'"{question}"'
+    else:
+        # This is the FIRST message - include full context and instructions
+        if images and not question:
+            user_message = "The student has shared an image. Please describe what you see and help them learn from it. If it's related to their studies, guide them on how to understand it better."
+        elif search_results and question:
+            # SECURITY: User question is clearly marked as input, not instructions
+            user_message = f"""STUDENT QUESTION (what the student asked):
 "{question}"
 
 AVAILABLE SOURCE MATERIALS (reference these - don't make up sources):
 {context}
 
 Your role: Guide the student using only the source materials above. Tell them which book, chapter, and page to read."""
-    elif question:
-        # SECURITY: Isolate user input to prevent injection
-        user_message = f"""STUDENT QUESTION (what the student asked):
+        elif question:
+            # SECURITY: Isolate user input to prevent injection
+            user_message = f"""STUDENT QUESTION (what the student asked):
 "{question}"
 
 Note: No relevant source materials found in uploaded documents.
 
 Respond helpfully to the student. If this topic would normally be in learning materials, let them know you don't have specific documents on it yet."""
-    else:
-        user_message = "Hello! How can I help you learn today?"
+        else:
+            user_message = "Hello! How can I help you learn today?"
     
     # Check if API key is configured
     if not settings.MISTRAL_API_KEY:
