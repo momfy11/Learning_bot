@@ -131,20 +131,23 @@ async def send_message(
         is_voice=request.is_voice
     )
     db.add(user_message)
+    await db.flush()  # Ensure message is in session for history query
     
-    # Get conversation history for context
+    # Get conversation history for context (EXCLUDING the current user message we just added)
     history_result = await db.execute(
         select(Message)
-        .where(Message.conversation_id == conversation.id)
+        .where(
+            Message.conversation_id == conversation.id,
+            Message.id != user_message.id  # Exclude the message we just added
+        )
         .order_by(Message.created_at)
     )
     previous_messages = history_result.scalars().all()
     
-    # Format history for LLM (exclude the message we just added)
+    # Format history for LLM
     conversation_history = [
         {"role": msg.role, "content": msg.content}
         for msg in previous_messages
-        if msg.content != request.message  # Exclude current message
     ]
     
     # Extract image data if provided
