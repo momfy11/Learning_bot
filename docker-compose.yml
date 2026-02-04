@@ -24,7 +24,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     volumes:
       - uploads:/app/uploads
-      - documents:/app/documents
+      - ./backend/documents:/app/documents
       - chroma_data:/app/chroma_data
     depends_on:
       - db
@@ -46,5 +46,4 @@ services:
 volumes:
   pgdata:
   uploads:
-  documents:
   chroma_data:
