@@ -52,10 +52,10 @@ This approach promotes deeper understanding and retention compared to simply rec
 ### Backend
 - **FastAPI** - Python web framework
 - **SQLAlchemy** - ORM for database operations
-- **SQLite** - Database (easy setup, switch to PostgreSQL for production)
-- **ChromaDB** - Vector database for RAG
-- **Sentence Transformers** - Text embeddings
-- **Mistral AI** - LLM API for generating responses
+- **PostgreSQL** - Relational database (with asyncpg driver for async support)
+- **ChromaDB** - Vector database for RAG embeddings
+- **Sentence Transformers** - Text embeddings (all-MiniLM-L6-v2)
+- **Mistral AI** - LLM API for generating personalized guidance responses
 
 ## 📁 Project Structure
 
@@ -192,28 +192,49 @@ Once the backend is running, visit:
 
 ## ⚙️ Configuration
 
-All configuration is done via environment variables in the `.env` file:
+All configuration is done via environment variables in the `.env` file. Copy `.env.example` to `.env` and fill in your values:
 
 ```env
-# Database (SQLite by default)
-DATABASE_URL=sqlite:///./learning_bot.db
+# PostgreSQL Database
+DATABASE_URL=postgresql+asyncpg://username:password@localhost:5432/learning_bot
 
 # JWT Settings
 SECRET_KEY=your-secret-key-here
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
-# Mistral AI (required for chat)
+# Mistral AI (required for chat guidance)
 MISTRAL_API_KEY=your-mistral-api-key
-MISTRAL_MODEL=mistral-small-latest
+MISTRAL_MODEL=mistral-small-2506
 
 # RAG Settings
 EMBEDDING_MODEL=all-MiniLM-L6-v2
+MAX_CONTEXT_TOKENS=2000
 TOP_K_RESULTS=3
 
 # File Upload
 MAX_UPLOAD_SIZE_MB=50
 ALLOWED_EXTENSIONS=pdf,txt,epub
+UPLOAD_DIR=uploads
+
+# Frontend URL (for CORS)
+FRONTEND_URL=http://localhost:5173
+```
+
+### Database Setup (PostgreSQL)
+
+**Local Development with Docker:**
+```bash
+docker run --name learning_bot_db \
+  -e POSTGRES_PASSWORD=yourpassword \
+  -e POSTGRES_DB=learning_bot \
+  -p 5432:5432 \
+  -d postgres:15-alpine
+```
+
+**Or use Docker Compose (recommended):**
+```bash
+docker compose up -d
 ```
 
 ## 🎤 Voice Feature
@@ -267,10 +288,17 @@ npm run lint
 5. Add component/page as needed
 
 ### Database Changes
-The database tables are created automatically on startup. For changes:
+
+The database schema is automatically created on startup. For changes:
 1. Modify models in `app/models/`
-2. Delete `learning_bot.db` for fresh start
-3. Or use Alembic for migrations (production)
+2. Use Alembic for migrations (recommended for production)
+
+**Reset Database (development only):**
+```bash
+# Drop all tables (WARNING: loses all data)
+docker compose down -v
+docker compose up -d
+```
 
 ## 🤝 Contributing
 
